@@ -184,7 +184,7 @@
     <aside class="panel">
       <h2>CONTROLS</h2>
       <div class="controls">
-        <button id="toggleBtn">⏸️ ポーズ</button>
+        <button id="toggleBtn">▶️ 再開</button>
         <button id="randomBtn" class="secondary">✨ ランダム生成</button>
         <button id="clearBtn" class="ghost">🫧 クリア</button>
         <div class="control-group">
@@ -198,6 +198,12 @@
         <div class="control-group">
           <label for="size">セルサイズ <strong id="sizeValue">10px</strong></label>
           <input id="size" type="range" min="6" max="16" step="1" value="10" />
+        </div>
+        <div class="control-group">
+          <span>エフェクト</span>
+          <label><input type="checkbox" id="glowToggle" checked /> グロー</label>
+          <label><input type="checkbox" id="rippleToggle" checked /> リップル</label>
+          <label><input type="checkbox" id="particleToggle" checked /> パーティクル</label>
         </div>
       </div>
       <div class="stats">
@@ -218,6 +224,9 @@
     const densitySlider = document.getElementById('density');
     const speedSlider = document.getElementById('speed');
     const sizeSlider = document.getElementById('size');
+    const glowToggle = document.getElementById('glowToggle');
+    const rippleToggle = document.getElementById('rippleToggle');
+    const particleToggle = document.getElementById('particleToggle');
     const densityValue = document.getElementById('densityValue');
     const speedValue = document.getElementById('speedValue');
     const sizeValue = document.getElementById('sizeValue');
@@ -229,12 +238,17 @@
     let rows = Math.floor(canvas.height / cellSize);
     let grid = [];
     let ages = [];
-    let running = true;
+    let running = false;
     let generation = 0;
     let lastTime = 0;
     let speed = Number(speedSlider.value);
     let particles = [];
     let ripples = [];
+    const effects = {
+      glow: true,
+      ripple: true,
+      particles: true
+    };
 
     const palette = [
       '#7ad4ff',
@@ -284,6 +298,7 @@
     };
 
     const spawnParticles = (x, y, color) => {
+      if (!effects.particles) return;
       for (let i = 0; i < 6; i += 1) {
         particles.push({
           x: x + cellSize / 2,
@@ -297,6 +312,7 @@
     };
 
     const spawnRipple = (x, y, color) => {
+      if (!effects.ripple) return;
       ripples.push({
         x: x + cellSize / 2,
         y: y + cellSize / 2,
@@ -354,8 +370,13 @@
           ctx.save();
           ctx.globalAlpha = 0.7 + intensity * 0.3;
           ctx.fillStyle = base;
-          ctx.shadowColor = base;
-          ctx.shadowBlur = 18 + intensity * 16;
+          if (effects.glow) {
+            ctx.shadowColor = base;
+            ctx.shadowBlur = 18 + intensity * 16;
+          } else {
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+          }
           ctx.fillRect(x * cellSize + 1, y * cellSize + 1, cellSize - 2, cellSize - 2);
           ctx.restore();
         }
@@ -363,6 +384,10 @@
     };
 
     const drawParticles = () => {
+      if (!effects.particles) {
+        particles = [];
+        return;
+      }
       particles = particles.filter((p) => p.life > 0);
       particles.forEach((p) => {
         p.x += p.vx;
@@ -381,6 +406,10 @@
     };
 
     const drawRipples = () => {
+      if (!effects.ripple) {
+        ripples = [];
+        return;
+      }
       ripples = ripples.filter((r) => r.alpha > 0);
       ripples.forEach((r) => {
         r.radius += 1.6;
@@ -388,9 +417,9 @@
         ctx.save();
         ctx.strokeStyle = r.color;
         ctx.globalAlpha = r.alpha;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = Math.max(0.6, 2 * r.alpha);
         ctx.shadowColor = r.color;
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 10 * r.alpha;
         ctx.beginPath();
         ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
         ctx.stroke();
@@ -453,6 +482,15 @@
     toggleBtn.addEventListener('click', toggleRunning);
     randomBtn.addEventListener('click', () => seedRandom(Number(densitySlider.value)));
     clearBtn.addEventListener('click', clearGrid);
+    glowToggle.addEventListener('change', (event) => {
+      effects.glow = event.target.checked;
+    });
+    rippleToggle.addEventListener('change', (event) => {
+      effects.ripple = event.target.checked;
+    });
+    particleToggle.addEventListener('change', (event) => {
+      effects.particles = event.target.checked;
+    });
 
     densitySlider.addEventListener('input', (event) => {
       densityValue.textContent = Number(event.target.value).toFixed(2);
