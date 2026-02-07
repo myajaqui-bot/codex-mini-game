@@ -244,6 +244,14 @@
     let speed = Number(speedSlider.value);
     let particles = [];
     let ripples = [];
+    const ball = {
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      radius: 6,
+      speed: 220,
+      vx: 0,
+      vy: 0
+    };
     const effects = {
       glow: true,
       ripple: true,
@@ -257,6 +265,14 @@
       '#ff8bd1'
     ];
 
+    const resetBall = () => {
+      ball.x = canvas.width / 2;
+      ball.y = canvas.height / 2;
+      const angle = Math.random() * Math.PI * 2;
+      ball.vx = Math.cos(angle) * ball.speed;
+      ball.vy = Math.sin(angle) * ball.speed;
+    };
+
     const resizeGrid = () => {
       cellSize = Number(sizeSlider.value);
       cols = Math.floor(canvas.width / cellSize);
@@ -264,6 +280,7 @@
       grid = Array.from({ length: rows }, () => Array(cols).fill(0));
       ages = Array.from({ length: rows }, () => Array(cols).fill(0));
       seedRandom(Number(densitySlider.value));
+      resetBall();
     };
 
     const seedRandom = (density) => {
@@ -295,6 +312,56 @@
         }
       }
       return count;
+    };
+
+    const updateBall = (delta) => {
+      if (!running) return;
+      const time = delta / 1000;
+      ball.x += ball.vx * time;
+      ball.y += ball.vy * time;
+
+      if (ball.x - ball.radius <= 0) {
+        ball.x = ball.radius;
+        ball.vx *= -1;
+      } else if (ball.x + ball.radius >= canvas.width) {
+        ball.x = canvas.width - ball.radius;
+        ball.vx *= -1;
+      }
+
+      if (ball.y - ball.radius <= 0) {
+        ball.y = ball.radius;
+        ball.vy *= -1;
+      } else if (ball.y + ball.radius >= canvas.height) {
+        ball.y = canvas.height - ball.radius;
+        ball.vy *= -1;
+      }
+
+      const cellX = Math.floor(ball.x / cellSize);
+      const cellY = Math.floor(ball.y / cellSize);
+      if (grid[cellY] && grid[cellY][cellX]) {
+        grid[cellY][cellX] = 0;
+        ages[cellY][cellX] = 0;
+        const cellCenterX = cellX * cellSize + cellSize / 2;
+        const cellCenterY = cellY * cellSize + cellSize / 2;
+        const dx = ball.x - cellCenterX;
+        const dy = ball.y - cellCenterY;
+        if (Math.abs(dx) > Math.abs(dy)) {
+          ball.vx *= -1;
+        } else {
+          ball.vy *= -1;
+        }
+      }
+    };
+
+    const drawBall = () => {
+      ctx.save();
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = '#ffffff';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     };
 
     const spawnParticles = (x, y, color) => {
@@ -430,6 +497,7 @@
     const render = (timestamp) => {
       const delta = timestamp - lastTime;
       const interval = 1000 / (6 * speed);
+      updateBall(delta);
       if (delta > interval) {
         lastTime = timestamp;
         if (running) {
@@ -441,6 +509,7 @@
       drawCells();
       drawRipples();
       drawParticles();
+      drawBall();
 
       requestAnimationFrame(render);
     };
@@ -448,6 +517,9 @@
     const toggleRunning = () => {
       running = !running;
       toggleBtn.textContent = running ? '⏸️ ポーズ' : '▶️ 再開';
+      if (running && ball.vx === 0 && ball.vy === 0) {
+        resetBall();
+      }
     };
 
     const clearGrid = () => {
