@@ -192,8 +192,8 @@
           <input id="density" type="range" min="0.1" max="0.8" step="0.05" value="0.35" />
         </div>
         <div class="control-group">
-          <label for="speed">スピード <strong id="speedValue">0.25x</strong></label>
-          <input id="speed" type="range" min="0.08" max="0.6" step="0.04" value="0.25" />
+          <label for="speed">スピード <strong id="speedValue">1.0x</strong></label>
+          <input id="speed" type="range" min="0.5" max="2" step="0.1" value="1" />
         </div>
         <div class="control-group">
           <label for="size">セルサイズ <strong id="sizeValue">10px</strong></label>
@@ -283,9 +283,8 @@
       return count;
     };
 
-    // v3: slowed and softened effects
     const spawnParticles = (x, y, color) => {
-      for (let i = 0; i < 2; i += 1) {
+      for (let i = 0; i < 6; i += 1) {
         particles.push({
           x: x + cellSize / 2,
           y: y + cellSize / 2,
@@ -353,10 +352,10 @@
           const base = palette[colorIndex];
 
           ctx.save();
-          ctx.globalAlpha = 0.38 + intensity * 0.18;
+          ctx.globalAlpha = 0.7 + intensity * 0.3;
           ctx.fillStyle = base;
           ctx.shadowColor = base;
-          ctx.shadowBlur = 7 + intensity * 6;
+          ctx.shadowBlur = 18 + intensity * 16;
           ctx.fillRect(x * cellSize + 1, y * cellSize + 1, cellSize - 2, cellSize - 2);
           ctx.restore();
         }
@@ -368,12 +367,12 @@
       particles.forEach((p) => {
         p.x += p.vx;
         p.y += p.vy;
-        p.life -= 0.07;
+        p.life -= 0.03;
         ctx.save();
         ctx.globalAlpha = p.life;
         ctx.fillStyle = p.color;
         ctx.shadowColor = p.color;
-        ctx.shadowBlur = 4;
+        ctx.shadowBlur = 12;
         ctx.beginPath();
         ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
         ctx.fill();
@@ -384,14 +383,14 @@
     const drawRipples = () => {
       ripples = ripples.filter((r) => r.alpha > 0);
       ripples.forEach((r) => {
-        r.radius += 0.9;
-        r.alpha -= 0.035;
+        r.radius += 1.6;
+        r.alpha -= 0.015;
         ctx.save();
         ctx.strokeStyle = r.color;
         ctx.globalAlpha = r.alpha;
-        ctx.lineWidth = 1.05;
+        ctx.lineWidth = 2;
         ctx.shadowColor = r.color;
-        ctx.shadowBlur = 5;
+        ctx.shadowBlur = 10;
         ctx.beginPath();
         ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
         ctx.stroke();
@@ -401,7 +400,7 @@
 
     const render = (timestamp) => {
       const delta = timestamp - lastTime;
-      const interval = 1000 / (0.7 * speed);
+      const interval = 1000 / (6 * speed);
       if (delta > interval) {
         lastTime = timestamp;
         if (running) {
