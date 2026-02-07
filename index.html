@@ -425,6 +425,12 @@
         } else {
           ball.vy *= -1;
         }
+        if (Math.random() < 0.25) {
+          const currentSpeed = Math.hypot(ball.vx, ball.vy);
+          const angle = Math.atan2(ball.vy, ball.vx) + (Math.random() * 0.4 - 0.2);
+          ball.vx = Math.cos(angle) * currentSpeed;
+          ball.vy = Math.sin(angle) * currentSpeed;
+        }
       }
     };
 
