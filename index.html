@@ -1,0 +1,585 @@
+<!-- v2: slowed simulation and softened effects -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>リッチエフェクト・ライフゲーム</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #05060b;
+      --panel: rgba(12, 16, 28, 0.85);
+      --panel-border: rgba(88, 118, 255, 0.25);
+      --accent: #7ad4ff;
+      --accent-2: #ffb86b;
+      --accent-3: #9bff9d;
+      --text: #e9f0ff;
+      --muted: #9aa6c7;
+      font-family: "Noto Sans JP", system-ui, -apple-system, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #0d1330, var(--bg) 65%);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 20px;
+    }
+
+    .shell {
+      width: min(1100px, 100%);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 280px;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .stage {
+      position: relative;
+      background: linear-gradient(160deg, rgba(19, 30, 68, 0.5), rgba(6, 9, 18, 0.95));
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 25px 60px rgba(4, 9, 28, 0.75), 0 0 0 1px rgba(130, 168, 255, 0.18);
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      border-radius: 16px;
+      display: block;
+      background: radial-gradient(circle at center, rgba(30, 60, 120, 0.25), rgba(3, 7, 17, 0.9));
+      box-shadow: inset 0 0 50px rgba(9, 16, 34, 0.9), 0 0 50px rgba(90, 150, 255, 0.2);
+    }
+
+    .legend {
+      position: absolute;
+      top: 18px;
+      left: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+    }
+
+    .legend h1 {
+      font-size: 20px;
+      margin: 0;
+      letter-spacing: 0.08em;
+    }
+
+    .legend p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border-radius: 18px;
+      padding: 18px;
+      border: 1px solid var(--panel-border);
+      box-shadow: 0 20px 40px rgba(3, 8, 24, 0.6);
+      backdrop-filter: blur(12px);
+    }
+
+    .panel h2 {
+      font-size: 16px;
+      margin: 0 0 16px;
+      letter-spacing: 0.08em;
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .controls button {
+      appearance: none;
+      border: none;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-weight: 600;
+      color: #0b1124;
+      background: linear-gradient(140deg, var(--accent), #5bb2ff);
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 14px 24px rgba(62, 147, 255, 0.3);
+    }
+
+    .controls button.secondary {
+      background: linear-gradient(140deg, #b0b7ff, #6f7cff);
+    }
+
+    .controls button.ghost {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid rgba(138, 160, 255, 0.4);
+      box-shadow: none;
+    }
+
+    .controls button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 18px 30px rgba(62, 147, 255, 0.4);
+    }
+
+    .controls button:active {
+      transform: translateY(1px);
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .control-group input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent-2);
+    }
+
+    .stats {
+      margin-top: 16px;
+      display: grid;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .stats strong {
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    @media (max-width: 960px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+
+      .panel {
+        order: -1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="stage">
+      <div class="legend">
+        <h1>NEON LIFE</h1>
+        <p>エフェクトが煌めくライフゲーム</p>
+      </div>
+      <canvas id="lifeCanvas" width="900" height="560" aria-label="ライフゲーム描画エリア"></canvas>
+    </div>
+    <aside class="panel">
+      <h2>CONTROLS</h2>
+      <div class="controls">
+        <button id="toggleBtn">▶️ 再開</button>
+        <button id="randomBtn" class="secondary">✨ ランダム生成</button>
+        <button id="clearBtn" class="ghost">🫧 クリア</button>
+        <div class="control-group">
+          <label for="density">密度 <strong id="densityValue">0.35</strong></label>
+          <input id="density" type="range" min="0.1" max="0.8" step="0.05" value="0.35" />
+        </div>
+        <div class="control-group">
+          <label for="speed">スピード <strong id="speedValue">1.0x</strong></label>
+          <input id="speed" type="range" min="0.5" max="2" step="0.1" value="1" />
+        </div>
+        <div class="control-group">
+          <label for="size">セルサイズ <strong id="sizeValue">10px</strong></label>
+          <input id="size" type="range" min="6" max="16" step="1" value="10" />
+        </div>
+        <div class="control-group">
+          <span>エフェクト</span>
+          <label><input type="checkbox" id="glowToggle" checked /> グロー</label>
+          <label><input type="checkbox" id="rippleToggle" checked /> リップル</label>
+          <label><input type="checkbox" id="particleToggle" checked /> パーティクル</label>
+        </div>
+      </div>
+      <div class="stats">
+        <div>世代: <strong id="generation">0</strong></div>
+        <div>生存セル: <strong id="aliveCount">0</strong></div>
+        <div>エフェクト: <strong>グロー / リップル / パーティクル</strong></div>
+        <div>操作: <strong>クリックでセルを反転</strong></div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('lifeCanvas');
+    const ctx = canvas.getContext('2d');
+    const toggleBtn = document.getElementById('toggleBtn');
+    const randomBtn = document.getElementById('randomBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const densitySlider = document.getElementById('density');
+    const speedSlider = document.getElementById('speed');
+    const sizeSlider = document.getElementById('size');
+    const glowToggle = document.getElementById('glowToggle');
+    const rippleToggle = document.getElementById('rippleToggle');
+    const particleToggle = document.getElementById('particleToggle');
+    const densityValue = document.getElementById('densityValue');
+    const speedValue = document.getElementById('speedValue');
+    const sizeValue = document.getElementById('sizeValue');
+    const generationEl = document.getElementById('generation');
+    const aliveCountEl = document.getElementById('aliveCount');
+
+    let cellSize = Number(sizeSlider.value);
+    let cols = Math.floor(canvas.width / cellSize);
+    let rows = Math.floor(canvas.height / cellSize);
+    let grid = [];
+    let ages = [];
+    let running = false;
+    let generation = 0;
+    let lastTime = 0;
+    let speed = Number(speedSlider.value);
+    let particles = [];
+    let ripples = [];
+    const ball = {
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      radius: 6,
+      speed: 220,
+      vx: 0,
+      vy: 0
+    };
+    const effects = {
+      glow: true,
+      ripple: true,
+      particles: true
+    };
+
+    const palette = [
+      '#7ad4ff',
+      '#9bff9d',
+      '#ffd86b',
+      '#ff8bd1'
+    ];
+
+    const resetBall = () => {
+      ball.x = canvas.width / 2;
+      ball.y = canvas.height / 2;
+      const angle = Math.random() * Math.PI * 2;
+      ball.vx = Math.cos(angle) * ball.speed;
+      ball.vy = Math.sin(angle) * ball.speed;
+    };
+
+    const resizeGrid = () => {
+      cellSize = Number(sizeSlider.value);
+      cols = Math.floor(canvas.width / cellSize);
+      rows = Math.floor(canvas.height / cellSize);
+      grid = Array.from({ length: rows }, () => Array(cols).fill(0));
+      ages = Array.from({ length: rows }, () => Array(cols).fill(0));
+      seedRandom(Number(densitySlider.value));
+      resetBall();
+    };
+
+    const seedRandom = (density) => {
+      grid.forEach((row, y) => {
+        row.forEach((_, x) => {
+          const alive = Math.random() < density ? 1 : 0;
+          grid[y][x] = alive;
+          ages[y][x] = alive ? Math.floor(Math.random() * 6 + 2) : 0;
+        });
+      });
+      generation = 0;
+      updateStats();
+    };
+
+    const updateStats = () => {
+      const alive = grid.flat().reduce((sum, cell) => sum + cell, 0);
+      generationEl.textContent = generation;
+      aliveCountEl.textContent = alive;
+    };
+
+    const countNeighbors = (x, y) => {
+      let count = 0;
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          if (dx === 0 && dy === 0) continue;
+          const nx = (x + dx + cols) % cols;
+          const ny = (y + dy + rows) % rows;
+          count += grid[ny][nx];
+        }
+      }
+      return count;
+    };
+
+    const updateBall = (delta) => {
+      if (!running) return;
+      const time = delta / 1000;
+      ball.x += ball.vx * time;
+      ball.y += ball.vy * time;
+
+      if (ball.x - ball.radius <= 0) {
+        ball.x = ball.radius;
+        ball.vx *= -1;
+      } else if (ball.x + ball.radius >= canvas.width) {
+        ball.x = canvas.width - ball.radius;
+        ball.vx *= -1;
+      }
+
+      if (ball.y - ball.radius <= 0) {
+        ball.y = ball.radius;
+        ball.vy *= -1;
+      } else if (ball.y + ball.radius >= canvas.height) {
+        ball.y = canvas.height - ball.radius;
+        ball.vy *= -1;
+      }
+
+      const cellX = Math.floor(ball.x / cellSize);
+      const cellY = Math.floor(ball.y / cellSize);
+      if (grid[cellY] && grid[cellY][cellX]) {
+        grid[cellY][cellX] = 0;
+        ages[cellY][cellX] = 0;
+        const cellCenterX = cellX * cellSize + cellSize / 2;
+        const cellCenterY = cellY * cellSize + cellSize / 2;
+        const dx = ball.x - cellCenterX;
+        const dy = ball.y - cellCenterY;
+        if (Math.abs(dx) > Math.abs(dy)) {
+          ball.vx *= -1;
+        } else {
+          ball.vy *= -1;
+        }
+      }
+    };
+
+    const drawBall = () => {
+      ctx.save();
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = '#ffffff';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    };
+
+    const spawnParticles = (x, y, color) => {
+      if (!effects.particles) return;
+      for (let i = 0; i < 6; i += 1) {
+        particles.push({
+          x: x + cellSize / 2,
+          y: y + cellSize / 2,
+          vx: (Math.random() - 0.5) * 2.5,
+          vy: (Math.random() - 0.5) * 2.5,
+          life: 1,
+          color
+        });
+      }
+    };
+
+    const spawnRipple = (x, y, color) => {
+      if (!effects.ripple) return;
+      ripples.push({
+        x: x + cellSize / 2,
+        y: y + cellSize / 2,
+        radius: 0,
+        alpha: 0.8,
+        color
+      });
+    };
+
+    const step = () => {
+      const next = Array.from({ length: rows }, () => Array(cols).fill(0));
+      const nextAges = Array.from({ length: rows }, () => Array(cols).fill(0));
+
+      for (let y = 0; y < rows; y += 1) {
+        for (let x = 0; x < cols; x += 1) {
+          const neighbors = countNeighbors(x, y);
+          const alive = grid[y][x] === 1;
+
+          if (alive && (neighbors === 2 || neighbors === 3)) {
+            next[y][x] = 1;
+            nextAges[y][x] = ages[y][x] + 1;
+          } else if (!alive && neighbors === 3) {
+            next[y][x] = 1;
+            nextAges[y][x] = 1;
+            const color = palette[(x + y + generation) % palette.length];
+            spawnParticles(x * cellSize, y * cellSize, color);
+            spawnRipple(x * cellSize, y * cellSize, color);
+          } else {
+            next[y][x] = 0;
+            nextAges[y][x] = 0;
+          }
+        }
+      }
+
+      grid = next;
+      ages = nextAges;
+      generation += 1;
+      updateStats();
+    };
+
+    const drawBackground = () => {
+      ctx.fillStyle = 'rgba(2, 5, 12, 0.35)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    };
+
+    const drawCells = () => {
+      for (let y = 0; y < rows; y += 1) {
+        for (let x = 0; x < cols; x += 1) {
+          if (!grid[y][x]) continue;
+          const age = ages[y][x];
+          const intensity = Math.min(age / 8, 1);
+          const colorIndex = (x * 3 + y + age) % palette.length;
+          const base = palette[colorIndex];
+
+          ctx.save();
+          ctx.globalAlpha = 0.7 + intensity * 0.3;
+          ctx.fillStyle = base;
+          if (effects.glow) {
+            ctx.shadowColor = base;
+            ctx.shadowBlur = 18 + intensity * 16;
+          } else {
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+          }
+          ctx.fillRect(x * cellSize + 1, y * cellSize + 1, cellSize - 2, cellSize - 2);
+          ctx.restore();
+        }
+      }
+    };
+
+    const drawParticles = () => {
+      if (!effects.particles) {
+        particles = [];
+        return;
+      }
+      particles = particles.filter((p) => p.life > 0);
+      particles.forEach((p) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 0.03;
+        ctx.save();
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+    };
+
+    const drawRipples = () => {
+      if (!effects.ripple) {
+        ripples = [];
+        return;
+      }
+      ripples = ripples.filter((r) => r.alpha > 0);
+      ripples.forEach((r) => {
+        r.radius += 1.6;
+        r.alpha -= 0.015;
+        ctx.save();
+        ctx.strokeStyle = r.color;
+        ctx.globalAlpha = r.alpha;
+        ctx.lineWidth = Math.max(0.6, 2 * r.alpha);
+        ctx.shadowColor = r.color;
+        ctx.shadowBlur = 10 * r.alpha;
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      });
+    };
+
+    const render = (timestamp) => {
+      const delta = timestamp - lastTime;
+      const interval = 1000 / (6 * speed);
+      updateBall(delta);
+      if (delta > interval) {
+        lastTime = timestamp;
+        if (running) {
+          step();
+        }
+      }
+
+      drawBackground();
+      drawCells();
+      drawRipples();
+      drawParticles();
+      drawBall();
+
+      requestAnimationFrame(render);
+    };
+
+    const toggleRunning = () => {
+      running = !running;
+      toggleBtn.textContent = running ? '⏸️ ポーズ' : '▶️ 再開';
+      if (running && ball.vx === 0 && ball.vy === 0) {
+        resetBall();
+      }
+    };
+
+    const clearGrid = () => {
+      grid.forEach((row, y) => {
+        row.forEach((_, x) => {
+          grid[y][x] = 0;
+          ages[y][x] = 0;
+        });
+      });
+      generation = 0;
+      updateStats();
+    };
+
+    canvas.addEventListener('click', (event) => {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const x = Math.floor(((event.clientX - rect.left) * scaleX) / cellSize);
+      const y = Math.floor(((event.clientY - rect.top) * scaleY) / cellSize);
+      if (grid[y] && grid[y][x] !== undefined) {
+        grid[y][x] = grid[y][x] ? 0 : 1;
+        ages[y][x] = grid[y][x] ? 1 : 0;
+        if (grid[y][x]) {
+          const color = palette[(x + y + generation) % palette.length];
+          spawnParticles(x * cellSize, y * cellSize, color);
+          spawnRipple(x * cellSize, y * cellSize, color);
+        }
+        updateStats();
+      }
+    });
+
+    toggleBtn.addEventListener('click', toggleRunning);
+    randomBtn.addEventListener('click', () => seedRandom(Number(densitySlider.value)));
+    clearBtn.addEventListener('click', clearGrid);
+    glowToggle.addEventListener('change', (event) => {
+      effects.glow = event.target.checked;
+    });
+    rippleToggle.addEventListener('change', (event) => {
+      effects.ripple = event.target.checked;
+    });
+    particleToggle.addEventListener('change', (event) => {
+      effects.particles = event.target.checked;
+    });
+
+    densitySlider.addEventListener('input', (event) => {
+      densityValue.textContent = Number(event.target.value).toFixed(2);
+    });
+
+    speedSlider.addEventListener('input', (event) => {
+      speed = Number(event.target.value);
+      speedValue.textContent = `${speed.toFixed(1)}x`;
+    });
+
+    sizeSlider.addEventListener('input', (event) => {
+      sizeValue.textContent = `${event.target.value}px`;
+      resizeGrid();
+    });
+
+    resizeGrid();
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>
