@@ -251,6 +251,7 @@
     let particles = [];
     let ripples = [];
     let shards = [];
+    let bounceStreak = 0;
     const ball = {
       x: canvas.width / 2,
       y: canvas.height / 2,
@@ -262,7 +263,7 @@
     };
     const effects = {
       glow: true,
-      ripple: true,
+      ripple: false,
       particles: true
     };
 
@@ -282,7 +283,13 @@
       ball.vy = Math.sin(angle) * actualSpeed;
     };
 
+    const resizeCanvas = () => {
+      canvas.width = 900;
+      canvas.height = window.innerWidth < 700 ? 820 : 560;
+    };
+
     const resizeGrid = () => {
+      resizeCanvas();
       cellSize = Number(sizeSlider.value);
       cols = Math.floor(canvas.width / cellSize);
       rows = Math.floor(canvas.height / cellSize);
@@ -321,6 +328,16 @@
         }
       }
       return count;
+    };
+
+    const spawnRandomCells = (count) => {
+      for (let i = 0; i < count; i += 1) {
+        const rx = Math.floor(Math.random() * cols);
+        const ry = Math.floor(Math.random() * rows);
+        grid[ry][rx] = 1;
+        ages[ry][rx] = 1;
+      }
+      updateStats();
     };
 
     const spawnShards = (x, y, color) => {
@@ -367,36 +384,28 @@
       if (ball.x - ball.radius <= 0) {
         ball.x = ball.radius;
         ball.vx *= -1;
-        const rx = Math.floor(Math.random() * cols);
-        const ry = Math.floor(Math.random() * rows);
-        grid[ry][rx] = 1;
-        ages[ry][rx] = 1;
+        bounceStreak += 1;
+        spawnRandomCells(bounceStreak);
         playBounceSound();
       } else if (ball.x + ball.radius >= canvas.width) {
         ball.x = canvas.width - ball.radius;
         ball.vx *= -1;
-        const rx = Math.floor(Math.random() * cols);
-        const ry = Math.floor(Math.random() * rows);
-        grid[ry][rx] = 1;
-        ages[ry][rx] = 1;
+        bounceStreak += 1;
+        spawnRandomCells(bounceStreak);
         playBounceSound();
       }
 
       if (ball.y - ball.radius <= 0) {
         ball.y = ball.radius;
         ball.vy *= -1;
-        const rx = Math.floor(Math.random() * cols);
-        const ry = Math.floor(Math.random() * rows);
-        grid[ry][rx] = 1;
-        ages[ry][rx] = 1;
+        bounceStreak += 1;
+        spawnRandomCells(bounceStreak);
         playBounceSound();
       } else if (ball.y + ball.radius >= canvas.height) {
         ball.y = canvas.height - ball.radius;
         ball.vy *= -1;
-        const rx = Math.floor(Math.random() * cols);
-        const ry = Math.floor(Math.random() * rows);
-        grid[ry][rx] = 1;
-        ages[ry][rx] = 1;
+        bounceStreak += 1;
+        spawnRandomCells(bounceStreak);
         playBounceSound();
       }
 
@@ -405,6 +414,7 @@
       if (grid[cellY] && grid[cellY][cellX]) {
         grid[cellY][cellX] = 0;
         ages[cellY][cellX] = 0;
+        bounceStreak = 0;
         const cellCenterX = cellX * cellSize + cellSize / 2;
         const cellCenterY = cellY * cellSize + cellSize / 2;
         const dx = ball.x - cellCenterX;
@@ -668,6 +678,8 @@
       ball.vx = Math.cos(angle) * actualSpeed;
       ball.vy = Math.sin(angle) * actualSpeed;
     });
+
+    window.addEventListener('resize', resizeGrid);
 
     resizeGrid();
     requestAnimationFrame(render);
