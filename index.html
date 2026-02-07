@@ -196,13 +196,17 @@
           <input id="speed" type="range" min="0.5" max="2" step="0.1" value="1" />
         </div>
         <div class="control-group">
-          <label for="size">セルサイズ <strong id="sizeValue">10px</strong></label>
-          <input id="size" type="range" min="6" max="16" step="1" value="10" />
+          <label for="size">セルサイズ <strong id="sizeValue">14px</strong></label>
+          <input id="size" type="range" min="6" max="18" step="1" value="14" />
+        </div>
+        <div class="control-group">
+          <label for="ballSpeed">ボール速度 <strong id="ballSpeedValue">1.0x</strong></label>
+          <input id="ballSpeed" type="range" min="0.6" max="2" step="0.1" value="1" />
         </div>
         <div class="control-group">
           <span>エフェクト</span>
           <label><input type="checkbox" id="glowToggle" checked /> グロー</label>
-          <label><input type="checkbox" id="rippleToggle" checked /> リップル</label>
+          <label><input type="checkbox" id="rippleToggle" /> リップル</label>
           <label><input type="checkbox" id="particleToggle" checked /> パーティクル</label>
         </div>
       </div>
@@ -224,12 +228,14 @@
     const densitySlider = document.getElementById('density');
     const speedSlider = document.getElementById('speed');
     const sizeSlider = document.getElementById('size');
+    const ballSpeedSlider = document.getElementById('ballSpeed');
     const glowToggle = document.getElementById('glowToggle');
     const rippleToggle = document.getElementById('rippleToggle');
     const particleToggle = document.getElementById('particleToggle');
     const densityValue = document.getElementById('densityValue');
     const speedValue = document.getElementById('speedValue');
     const sizeValue = document.getElementById('sizeValue');
+    const ballSpeedValue = document.getElementById('ballSpeedValue');
     const generationEl = document.getElementById('generation');
     const aliveCountEl = document.getElementById('aliveCount');
 
@@ -244,11 +250,13 @@
     let speed = Number(speedSlider.value);
     let particles = [];
     let ripples = [];
+    let shards = [];
     const ball = {
       x: canvas.width / 2,
       y: canvas.height / 2,
       radius: 6,
       speed: 220,
+      speedFactor: Number(ballSpeedSlider.value),
       vx: 0,
       vy: 0
     };
@@ -269,8 +277,9 @@
       ball.x = canvas.width / 2;
       ball.y = canvas.height / 2;
       const angle = Math.random() * Math.PI * 2;
-      ball.vx = Math.cos(angle) * ball.speed;
-      ball.vy = Math.sin(angle) * ball.speed;
+      const actualSpeed = ball.speed * ball.speedFactor;
+      ball.vx = Math.cos(angle) * actualSpeed;
+      ball.vy = Math.sin(angle) * actualSpeed;
     };
 
     const resizeGrid = () => {
@@ -314,6 +323,41 @@
       return count;
     };
 
+    const spawnShards = (x, y, color) => {
+      for (let i = 0; i < 8; i += 1) {
+        const angle = (Math.PI * 2 * i) / 8 + Math.random() * 0.4;
+        shards.push({
+          x,
+          y,
+          vx: Math.cos(angle) * (2 + Math.random() * 2),
+          vy: Math.sin(angle) * (2 + Math.random() * 2),
+          life: 1,
+          color
+        });
+      }
+    };
+
+    const playBounceSound = () => {
+      if (!window.AudioContext) return;
+      if (!playBounceSound.ctx) {
+        playBounceSound.ctx = new AudioContext();
+      }
+      const audioCtx = playBounceSound.ctx;
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      const oscillator = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      oscillator.type = 'triangle';
+      oscillator.frequency.value = 520 + Math.random() * 120;
+      gain.gain.value = 0.12;
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+      oscillator.connect(gain);
+      gain.connect(audioCtx.destination);
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.16);
+    };
+
     const updateBall = (delta) => {
       if (!running) return;
       const time = delta / 1000;
@@ -323,17 +367,37 @@
       if (ball.x - ball.radius <= 0) {
         ball.x = ball.radius;
         ball.vx *= -1;
+        const rx = Math.floor(Math.random() * cols);
+        const ry = Math.floor(Math.random() * rows);
+        grid[ry][rx] = 1;
+        ages[ry][rx] = 1;
+        playBounceSound();
       } else if (ball.x + ball.radius >= canvas.width) {
         ball.x = canvas.width - ball.radius;
         ball.vx *= -1;
+        const rx = Math.floor(Math.random() * cols);
+        const ry = Math.floor(Math.random() * rows);
+        grid[ry][rx] = 1;
+        ages[ry][rx] = 1;
+        playBounceSound();
       }
 
       if (ball.y - ball.radius <= 0) {
         ball.y = ball.radius;
         ball.vy *= -1;
+        const rx = Math.floor(Math.random() * cols);
+        const ry = Math.floor(Math.random() * rows);
+        grid[ry][rx] = 1;
+        ages[ry][rx] = 1;
+        playBounceSound();
       } else if (ball.y + ball.radius >= canvas.height) {
         ball.y = canvas.height - ball.radius;
         ball.vy *= -1;
+        const rx = Math.floor(Math.random() * cols);
+        const ry = Math.floor(Math.random() * rows);
+        grid[ry][rx] = 1;
+        ages[ry][rx] = 1;
+        playBounceSound();
       }
 
       const cellX = Math.floor(ball.x / cellSize);
@@ -345,6 +409,7 @@
         const cellCenterY = cellY * cellSize + cellSize / 2;
         const dx = ball.x - cellCenterX;
         const dy = ball.y - cellCenterY;
+        spawnShards(cellCenterX, cellCenterY, '#ffffff');
         if (Math.abs(dx) > Math.abs(dy)) {
           ball.vx *= -1;
         } else {
@@ -472,6 +537,22 @@
       });
     };
 
+    const drawShards = () => {
+      shards = shards.filter((s) => s.life > 0);
+      shards.forEach((s) => {
+        s.x += s.vx;
+        s.y += s.vy;
+        s.life -= 0.06;
+        ctx.save();
+        ctx.globalAlpha = s.life;
+        ctx.fillStyle = s.color;
+        ctx.shadowColor = s.color;
+        ctx.shadowBlur = 10;
+        ctx.fillRect(s.x, s.y, 3, 3);
+        ctx.restore();
+      });
+    };
+
     const drawRipples = () => {
       if (!effects.ripple) {
         ripples = [];
@@ -509,6 +590,7 @@
       drawCells();
       drawRipples();
       drawParticles();
+      drawShards();
       drawBall();
 
       requestAnimationFrame(render);
@@ -576,6 +658,15 @@
     sizeSlider.addEventListener('input', (event) => {
       sizeValue.textContent = `${event.target.value}px`;
       resizeGrid();
+    });
+
+    ballSpeedSlider.addEventListener('input', (event) => {
+      ball.speedFactor = Number(event.target.value);
+      ballSpeedValue.textContent = `${ball.speedFactor.toFixed(1)}x`;
+      const angle = Math.atan2(ball.vy, ball.vx) || Math.random() * Math.PI * 2;
+      const actualSpeed = ball.speed * ball.speedFactor;
+      ball.vx = Math.cos(angle) * actualSpeed;
+      ball.vy = Math.sin(angle) * actualSpeed;
     });
 
     resizeGrid();
